@@ -1,0 +1,28 @@
+{
+  "name": "b2m-indexer",
+  "version": "1.0.0",
+  "description": "Store & Index through the XRP Ledger & Xahau for B2M traffic.",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wojake/B2M-indexer.git"
+  },
+  "keywords": [
+    "B2M",
+    "XRPL",
+    "Xahau"
+  ],
+  "author": "Wo Jake",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/wojake/B2M-indexer/issues"
+  },
+  "homepage": "https://github.com/wojake/B2M-indexer#readme",
+  "dependencies": {
+    "prompt-sync": "^4.2.0",
+    "sqlite3": "^5.1.6"
+  }
+}
