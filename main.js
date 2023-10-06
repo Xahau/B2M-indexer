@@ -60,6 +60,7 @@ async function StartXrplListener() {
     // XRPL
     xrplClient.on("transaction", async (tx) => {
         if (tx.ledger_index > temporaryLastSyncedXrplLedger && Object.keys(temporaryBurnAccountRecord).length > 0) {
+            dbManager.UpdateMiscRecord("lastSyncedXrplLedgerIndex", temporaryLastSyncedXrplLedger);
             for (const [key, value] of Object.entries(temporaryBurnAccountRecord)) {
                 delete temporaryBurnAccountRecord[key];
                 await record.RecordBurnTx(key, value.amount, value.tx_count, value.date);
@@ -67,7 +68,6 @@ async function StartXrplListener() {
         }
         
         if (tx.engine_result === "tesSUCCESS" && tx.transaction.hasOwnProperty("OperationLimit") && !tx.transaction.hasOwnProperty("TicketSequence") && tx.transaction.OperationLimit === 21338) {
-            dbManager.UpdateMiscRecord("lastSyncedXrplLedgerIndex", tx.ledger_index);
             temporaryLastSyncedXrplLedger = tx.ledger_index;
             
             var accountBurnRecord = temporaryBurnAccountRecord[tx.transaction.Account];
@@ -101,6 +101,7 @@ async function StartXahauListener() {
     // XAHAU
     xahauClient.on("transaction", async (tx) => {
         if (tx.ledger_index > temporaryLastSyncedXahauLedger && Object.keys(temporaryMintAccountRecord).length > 0) {
+            dbManager.UpdateMiscRecord("lastSyncedXahauLedgerIndex", temporaryLastSyncedXahauLedger);
             for (const [key, value] of Object.entries(temporaryMintAccountRecord)) {
                 delete temporaryMintAccountRecord[key];
                 await record.RecordMintTx(key, value.amount, value.tx_count, value.date, value.newly_funded_account);
@@ -116,7 +117,6 @@ async function StartXahauListener() {
                 var import_amount = parseInt(tx.meta.AffectedNodes[0].ModifiedNode.FinalFields.Balance);
             }
             
-            dbManager.UpdateMiscRecord("lastSyncedXahauLedgerIndex", tx.ledger_index);
             temporaryLastSyncedXahauLedger = tx.ledger_index;
             
             var accountMintRecord = temporaryMintAccountRecord[tx.transaction.Account];
@@ -176,8 +176,8 @@ async function main() {
         var burnSyncprogress = 0;
         var mintSyncProgress = 0;
         
-        var xrplReqID = 0;
-        var xahauReqID = 0;
+        var xrplReqID = 1;
+        var xahauReqID = 1;
         
         // we blindly add `[]delta` to the equation because it'll take us some time to index the entire thing (from currentXrplLedgerIndex.ledger_current_index)
         // until we receive a malformed result, we just yolo it. LGTM but please feel free to suggest improvements.
