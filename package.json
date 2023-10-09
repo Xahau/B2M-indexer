@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wojake/B2M-indexer.git"
+    "url": "git+https://github.com/Xahau/B2M-indexer.git"
   },
   "keywords": [
     "B2M",
@@ -18,11 +18,12 @@
   "author": "Wo Jake",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/wojake/B2M-indexer/issues"
+    "url": "https://github.com/Xahau/B2M-indexer/issues"
   },
-  "homepage": "https://github.com/wojake/B2M-indexer#readme",
+  "homepage": "https://github.com/Xahau/B2M-indexer#readme",
   "dependencies": {
     "prompt-sync": "^4.2.0",
-    "sqlite3": "^5.1.6"
+    "sqlite3": "^5.1.6",
+    "xrpl-client": "^2.2.0"
   }
 }

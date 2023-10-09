@@ -1,7 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 
-const dbAccount = new sqlite3.Database('./db/:account:'); // General Account Burn-To-Mint records
-const dbRecord = new sqlite3.Database('./db/:record:'); // Analytical records
+const dbAccount = new sqlite3.Database('../db/:account:'); // General Account Burn-To-Mint records
+const dbRecord = new sqlite3.Database('../db/:record:'); // Analytical records
 
 /**
 * Get an account's B2M record.

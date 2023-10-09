@@ -1,12 +1,11 @@
-const dbSetup = require("./db/setup");
+const dbSetup = require("../db/setup");
 const { XrplClient } = require("xrpl-client");
 
-const dbManager = require("./db/manager");
-const record = require("./db/record.js");
-const { Log } = require("./log/logger.js");
+const dbManager = require("../db/manager");
+const record = require("../db/record");
+const { Log } = require("../log/logger");
 
-const dotenv = require("dotenv");
-dotenv.config();
+const dotenv = require("dotenv").config({path:"../.env"});
 
 // B2M-indexer - Listen & index Burn2Mint transactions on the XRPL & Xahau.
 
@@ -19,8 +18,8 @@ const xrplClients = [process.env.XRPL_CLIENT];
 const xahauClients = [process.env.XAHAU_CLIENT];
 
 const clientConfig = {
-    assumeOfflineAfterSeconds: 10,
-    maxConnectionAttempts: 3,
+    assumeOfflineAfterSeconds: 30,
+    maxConnectionAttempts: 10,
     connectAttemptTimeoutSeconds: 3,
 };
 
@@ -30,10 +29,11 @@ const xahauClient = new XrplClient(xahauClients, clientConfig);
 // --- For testing purposes ---
 // Testnet: You can just put in a random, but close enough ledger index to not spend too much time indexing through the ledger.
 // NOTE: In production, if you don't start from the first ledger(s) that contain the first Burn & Mint tx, the account records will be wrong.
+
 /** The ledger containing the first **Burn** tx */
-var ledgerBurn = 41790000;
-/** The ledger containing the first **Mint** tx */
-var ledgerMint = 7159000;
+var ledgerBurn = process.env.XRPL_LEDGER_INDEX;
+/** The ledger where XahauGenesis went live */
+var ledgerMint = process.env.XAHAU_LEDGER_INDEX;
 
 // Tx stream state
 var xrplListener = false;
@@ -109,15 +109,20 @@ async function StartXahauListener() {
         }
         
         if (tx.engine_result === "tesSUCCESS" && tx.transaction.TransactionType === "Import") {
-            if (tx.meta.AffectedNodes[0].hasOwnProperty("CreatedNode")) {
-                var newlyFundedAccount = 1;
-                var import_amount = parseInt(tx.meta.AffectedNodes[0].CreatedNode.NewFields.Balance);
-            } else {
-                var newlyFundedAccount = 0;
-                var import_amount = parseInt(tx.meta.AffectedNodes[0].ModifiedNode.FinalFields.Balance);
-            }
-            
+            var newlyFundedAccount = null; 
+            var import_amount = null;
             temporaryLastSyncedXahauLedger = tx.ledger_index;
+            
+            tx.meta.AffectedNodes.forEach(metadata => {
+                if (metadata.hasOwnProperty("CreatedNode") && metadata.CreatedNode.LedgerEntryType === "AccountRoot") {
+                    newlyFundedAccount = 1;
+                    import_amount = parseInt(metadata.CreatedNode.NewFields.Balance);
+                }
+                if (metadata.hasOwnProperty("ModifiedNode") && metadata.ModifiedNode.LedgerEntryType === "AccountRoot") {
+                    newlyFundedAccount = 0;
+                    import_amount = parseInt(metadata.ModifiedNode.FinalFields.Balance) - parseInt(metadata.ModifiedNode.PreviousFields.Balance);    
+                }
+            })
             
             var accountMintRecord = temporaryMintAccountRecord[tx.transaction.Account];
             if (accountMintRecord === undefined) {
@@ -179,11 +184,10 @@ async function main() {
         var xrplReqID = 1;
         var xahauReqID = 1;
         
-        // we blindly add `[]delta` to the equation because it'll take us some time to index the entire thing (from currentXrplLedgerIndex.ledger_current_index)
-        // until we receive a malformed result, we just yolo it. LGTM but please feel free to suggest improvements.
-        while (ledgerBurn + xrplReqID <= currentXrplLedgerIndex.ledger_current_index + xrplDelta || ledgerMint + xahauReqID <= currentXahauLedgerIndex.ledger_current_index + xahauDelta) {
+        // Because we're re-syncing with the ledger, we will re-sync until the Last Closed Ledger (essentially meaning that we're fully synced)
+        while (ledgerBurn < currentXrplLedgerIndex.ledger_current_index || ledgerMint < currentXahauLedgerIndex.ledger_current_index) {
             // Sync XRPL (Burn)
-            if (ledgerBurn + xrplReqID <= currentXrplLedgerIndex.ledger_current_index + xrplDelta) {
+            if (!xrplListener) {
                 const progress = parseInt(xrplReqID / xrplDelta * 100);
                 if (progress !== burnSyncprogress && progress <= 100) process.stdout.write(`${progress}% synced with XRPL...\r`); burnSyncprogress = progress;
                 
@@ -212,29 +216,39 @@ async function main() {
                         }
                     });
                     
-                    for (const [key, value] of Object.entries(temporaryBurnAccountRecord)) {
-                        await record.RecordBurnTx(key, value.amount, value.tx_count, value.date);
-                        delete temporaryBurnAccountRecord[key];
-                    }
-                    
-                    dbManager.UpdateMiscRecord("lastSyncedXrplLedgerIndex", ledgerBurn + xrplReqID);
-                    xrplReqID++;
-                } catch (err) {
-                    if (xrplLedger.error === "lgrNotFound" && !xrplListener) {
-                        Log("INF", `Re-synced ${xrplReqID} ledgers on the XRPL`);
+                    if (xrplLedger.validated === true) {
+                        for (const [key, value] of Object.entries(temporaryBurnAccountRecord)) {
+                            delete temporaryBurnAccountRecord[key];
+                            await record.RecordBurnTx(key, value.amount, value.tx_count, value.date);
+                        }
                         
+                        dbManager.UpdateMiscRecord("lastSyncedXrplLedgerIndex", ledgerBurn + xrplReqID);
+                        xrplReqID++;
+                    } else if (xrplLedger.error === "lgrNotFound" || xrplLedger.ledger.closed === false) {
                         await StartXrplListener();
+                        
+                        Log("INF", `Re-synced ${xrplReqID-1} ledgers on the XRPL`);
+                        
+                        // junky way to stop syncing w/ the network, but it works.
+                        ledgerBurn = Infinity;
+                    }
+                } catch (err) {
+                    if (xrplLedger.error === "lgrNotFound" || xrplLedger.ledger.closed === false) {
+                        await StartXrplListener();
+                        
+                        Log("INF", `Re-synced ${xrplReqID-1} ledgers on the XRPL`);
                         
                         // junky way to stop syncing w/ the network, but it works.
                         ledgerBurn = Infinity;
                     } else {
                         Log("ERR", `Re-syncing Error (XRPL): ${err}`);
+                        break;
                     }
                 }
             }
             
             // Sync Xahau (Mint)
-            if (ledgerMint + xahauReqID  <= currentXrplLedgerIndex.ledger_current_index + xahauDelta) {
+            if (!xahauListener) {
                 const progress = parseInt(xahauReqID / xahauDelta * 100);
                 if (progress !== mintSyncProgress && progress <= 100) process.stdout.write(`${progress}% synced with Xahau...\r`); mintSyncProgress = progress;
                 
@@ -249,13 +263,19 @@ async function main() {
                 try {
                     xahauLedger.ledger.transactions.forEach(async tx => {
                         if (tx.TransactionType === "Import") {
-                            if (tx.metaData.AffectedNodes[0].hasOwnProperty("CreatedNode")) {
-                                var newlyFundedAccount = 1;
-                                var import_amount = parseInt(tx.metaData.AffectedNodes[0].CreatedNode.NewFields.Balance);
-                            } else {
-                                var newlyFundedAccount = 0;
-                                var import_amount = parseInt(tx.metaData.AffectedNodes[0].ModifiedNode.FinalFields.Balance);
-                            }
+                            var newlyFundedAccount = null; 
+                            var import_amount = null;
+                            
+                            tx.metaData.AffectedNodes.forEach(metadata => {
+                                if (metadata.hasOwnProperty("CreatedNode") && metadata.CreatedNode.LedgerEntryType === "AccountRoot") {
+                                    newlyFundedAccount = 1;
+                                    import_amount = parseInt(metadata.CreatedNode.NewFields.Balance);
+                                }
+                                if (metadata.hasOwnProperty("ModifiedNode") && metadata.ModifiedNode.LedgerEntryType === "AccountRoot") {
+                                    newlyFundedAccount = 0;
+                                    import_amount = parseInt(metadata.ModifiedNode.FinalFields.Balance) - parseInt(metadata.ModifiedNode.PreviousFields.Balance);    
+                                }
+                            })
                             
                             var accountMintRecord = temporaryMintAccountRecord[tx.Account];
                             if (accountMintRecord === undefined) {
@@ -272,32 +292,36 @@ async function main() {
                         }
                     });
                     
-                    for (const [key, value] of Object.entries(temporaryMintAccountRecord)) {
-                        await record.RecordMintTx(key, value.amount, value.tx_count, value.date, value.newly_funded_account);
-                        delete temporaryMintAccountRecord[key];
-                    }
-                    
-                    dbManager.UpdateMiscRecord("lastSyncedXahauLedgerIndex", ledgerMint + xahauReqID);
-                    xahauReqID++;
-                } catch (err) {
-                    if (xahauLedger.error === "lgrNotFound" && !xahauListener) {
-                        Log("INF", `Re-synced ${xahauReqID} ledgers on Xahau`);
+                    if(xahauLedger.validated === true) {
+                        for (const [key, value] of Object.entries(temporaryMintAccountRecord)) {
+                            delete temporaryMintAccountRecord[key];
+                            await record.RecordMintTx(key, value.amount, value.tx_count, value.date, value.newly_funded_account);
+                        }
                         
+                        dbManager.UpdateMiscRecord("lastSyncedXahauLedgerIndex", ledgerMint + xahauReqID);
+                        xahauReqID++;
+                    } else if (xahauLedger.error === "lgrNotFound" || xahauLedger.ledger.closed === false) {
                         await StartXahauListener();
                         
-                        // junky way to stop
+                        Log("INF", `Re-synced ${xahauReqID-1} ledgers on Xahau`);
+                        
+                        ledgerMint = Infinity;
+                    }
+                } catch (err) {
+                    if (xahauLedger.error === "lgrNotFound" || xahauLedger.ledger.closed === false) {
+                        await StartXahauListener();
+                        
+                        Log("INF", `Re-synced ${xahauReqID-1} ledgers on Xahau`);
+                        
                         ledgerMint = Infinity;
                     } else {
                         Log("ERR", `Re-syncing Error (Xahau): ${err}`);
+                        break;
                     }
                 }
             }
         }
     }
-    
-    // After we've re-synced with both ledgers, we'll start listening to the transaction stream.
-    if (!xrplListener) await StartXrplListener();
-    if (!xahauListener) await StartXahauListener();
 }
 
 main();

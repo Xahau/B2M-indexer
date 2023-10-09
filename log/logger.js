@@ -12,13 +12,13 @@ function Log(type, message) {
 	
 	switch (type) {
 		case "ERR":
-		fs.appendFileSync(`log/${type}.txt`, message);
+		fs.appendFileSync(`../log/${type}.txt`, message);
 		break;
 		case "WRN":
-		fs.appendFileSync(`log/${type}.txt`, message);
+		fs.appendFileSync(`../log/${type}.txt`, message);
 		break;
 		case "INF":
-		fs.appendFileSync(`log/${type}.txt`, message);
+		fs.appendFileSync(`../log/${type}.txt`, message);
 		break;
 	}
 };
