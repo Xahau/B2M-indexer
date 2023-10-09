@@ -6,7 +6,7 @@ const dbManager = require("./manager");
 */
 async function RecordBurnTx(account, amount, tx_count, date) {
   const full_date = new Date((date + 946684800) * 1000).toISOString().slice(0, 10);
-  const display_date = new Date((date + 946684800) * 1000).toISOString();
+  const display_date = new Date((date + 946684800) * 1000).toISOString().slice(0, 19);
   const month_date = full_date.slice(0, 8).concat("00");
   
   Log("INF", `${amount / 1000000} $XRP burnt by ${account} at ${display_date}`);
@@ -41,7 +41,7 @@ async function RecordBurnTx(account, amount, tx_count, date) {
 */
 async function RecordMintTx(account, amount, tx_count, date, newly_funded_account) {
   const full_date = new Date((date + 946684800) * 1000).toISOString().slice(0, 10);
-  const display_date = new Date((date + 946684800) * 1000).toISOString();
+  const display_date = new Date((date + 946684800) * 1000).toISOString().slice(0, 19);
   const month_date = full_date.slice(0, 8).concat("00");
   
   Log("INF", `${amount / 1000000} $XAH minted by ${account} at ${display_date}`);

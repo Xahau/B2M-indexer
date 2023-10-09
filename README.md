@@ -13,10 +13,10 @@ npm install
 
 `.env` structure:
 ```
-XRPL_CLIENT="XRPL node wss address" || string
-XAHAU_CLIENT="Xahau node wss address" || string
-XRPL_LEDGER_INDEX="The ledger containing the first Burn tx" || integer
-XAHAU_LEDGER_INDEX="The ledger in which XahauGenesis went live" || integer
+XRPL_CLIENT=XRPL node wss address
+XAHAU_CLIENT=Xahau node wss address
+XRPL_LEDGER_INDEX=The ledger containing the first Burn tx
+XAHAU_LEDGER_INDEX=The ledger in which XahauGenesis went live
 ```
 
 **NOTE**: For testing purposes, you can put any arbitrary ledger index to start from.
@@ -27,6 +27,10 @@ cp -r .env.sample .env
 ```
 
 ## Run B2M-indexer
+
+```
+cd src
+```
 
 To run `B2M-indexer`:
 ```
