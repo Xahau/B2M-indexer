@@ -1,6 +1,6 @@
 {
   "name": "b2m-indexer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Store & Index through the XRP Ledger & Xahau for B2M traffic.",
   "main": "main.js",
   "scripts": {

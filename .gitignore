@@ -3,3 +3,4 @@ db/:record:
 log/ERR.txt
 log/INF.txt
 node_modules/ 
+.env
