@@ -25,6 +25,7 @@
   "dependencies": {
     "prompt-sync": "^4.2.0",
     "sqlite3": "^5.1.6",
-    "xrpl-client": "^2.2.0"
+    "xrpl-client": "^2.2.0",
+    "dotenv": "^16.3.1"
   }
 }
