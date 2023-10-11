@@ -44,8 +44,13 @@ async function RecordMintTx(account, amount, tx_count, date, newly_funded_accoun
   const display_date = new Date((date + 946684800) * 1000).toISOString().slice(0, 19);
   const month_date = full_date.slice(0, 8).concat("00");
   
-  Log("INF", `${amount / 1000000} $XAH minted by ${account} at ${display_date}`);
   
+  if (isNaN(amount) || amount === null) {
+  Log("INF", `${amount} attemped to be minted by ${account} at ${display_date} causing error`);
+  return;
+  } 
+  Log("INF", `${amount / 1000000} $XAH minted by ${account} at ${display_date}`);
+ 
   // ACCOUNT RECORD
   const record = await dbManager.GetAccountRecord(account);
   
