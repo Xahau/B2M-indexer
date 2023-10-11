@@ -1,11 +1,16 @@
-const dbSetup = require("../db/setup");
+const { Log } = require("../log/logger");
 const { XrplClient } = require("xrpl-client");
-
+const dbSetup = require("../db/setup");
 const dbManager = require("../db/manager");
 const record = require("../db/record");
-const { Log } = require("../log/logger");
+const dotenv = require("dotenv").config({path:"./.env"});
 
-const dotenv = require("dotenv").config({path:"../.env"});
+// ### Spawn a child process to run the API code in a separate thread ###
+const { spawn } = require('child_process');
+const apiProcessa = spawn('node', ['src/api.js'], {
+  stdio: ['inherit', 'inherit', 'inherit'],
+});
+
 
 // B2M-indexer - Listen & index Burn2Mint transactions on the XRPL & Xahau.
 
@@ -14,8 +19,8 @@ const dotenv = require("dotenv").config({path:"../.env"});
 // Xahau Network ID; TBD
 
 // Nodes to connect to (Xahau & XRPL)
-const xrplClients = [process.env.XRPL_CLIENT];
-const xahauClients = [process.env.XAHAU_CLIENT];
+var xrplClients = process.env.XRPL_CLIENT;
+var xahauClients = process.env.XAHAU_CLIENT;
 
 const clientConfig = {
     assumeOfflineAfterSeconds: 30,
