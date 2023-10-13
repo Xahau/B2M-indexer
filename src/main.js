@@ -3,7 +3,8 @@ const { XrplClient } = require("xrpl-client");
 const dbSetup = require("../db/setup");
 const dbManager = require("../db/manager");
 const record = require("../db/record");
-const dotenv = require("dotenv").config({path:"./.env"});
+const dotenv = require("dotenv").config({path:"../.env"});
+
 
 // ### Spawn a child process to run the API code in a separate thread ###
 const { spawn } = require('child_process');

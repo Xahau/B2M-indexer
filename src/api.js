@@ -2,7 +2,7 @@ console.log('API server starting .....');
 const express = require('express');
 const app = express();
 const dbManager = require("../db/manager");
-const dotenv = require("dotenv").config({path:"./.env"});
+const dotenv = require("dotenv").config({path:"../.env"});
 
 // GET route for stats
 app.get('/', async (req, res) => {
