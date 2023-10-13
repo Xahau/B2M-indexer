@@ -7,7 +7,7 @@ const dotenv = require("dotenv").config({path:"./.env"});
 
 // ### Spawn a child process to run the API code in a separate thread ###
 const { spawn } = require('child_process');
-const apiProcessa = spawn('node', ['src/api.js'], {
+const apiProcessa = spawn('node', ['api.js'], {
   stdio: ['inherit', 'inherit', 'inherit'],
 });
 
