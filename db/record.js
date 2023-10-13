@@ -46,8 +46,8 @@ async function RecordMintTx(account, amount, tx_count, date, newly_funded_accoun
   
   
   if (isNaN(amount) || amount === null) {
-  Log("INF", `${amount} attemped to be minted by ${account} at ${display_date} causing error`);
-  return;
+  Log("INF", `${amount} mint amount detected by ${account}, txcount:${tx_count} date:${display_date} set to 0 to prevent error`);
+  const amount = 0;
   } 
   Log("INF", `${amount / 1000000} $XAH minted by ${account} at ${display_date}`);
  
