@@ -8,6 +8,7 @@ const dotenv = require("dotenv").config({path:"../.env"});
 
 // ### Spawn a child process to run the API code in a separate thread ###
 const { spawn } = require('child_process');
+const { Console } = require("console");
 const apiProcessa = spawn('node', ['api.js'], {
   stdio: ['inherit', 'inherit', 'inherit'],
 });
@@ -75,7 +76,7 @@ async function StartXrplListener() {
         
         if (tx.engine_result === "tesSUCCESS" && tx.transaction.hasOwnProperty("OperationLimit") && !tx.transaction.hasOwnProperty("TicketSequence") && tx.transaction.OperationLimit === 21338) {
             temporaryLastSyncedXrplLedger = tx.ledger_index;
-            
+
             var accountBurnRecord = temporaryBurnAccountRecord[tx.transaction.Account];
             if (accountBurnRecord === undefined) {
                 temporaryBurnAccountRecord[tx.transaction.Account] = {
@@ -205,9 +206,15 @@ async function main() {
                     "expand": true
                 });
                 
+
+                var tx_count = 0;
                 try {
                     xrplLedger.ledger.transactions.forEach(async tx => {
                         if (tx.hasOwnProperty("OperationLimit") && !tx.hasOwnProperty("TicketSequence") && tx.OperationLimit === 21338) {
+                            
+                            //jelli
+                            tx_count++;
+                            
                             var accountBurnRecord = temporaryBurnAccountRecord[tx.Account];
                             if (accountBurnRecord === undefined) {
                                 temporaryBurnAccountRecord[tx.Account] = {
@@ -215,10 +222,14 @@ async function main() {
                                     tx_count: 1,
                                     date: xrplLedger.ledger.close_time,
                                 };
+
                             } else {
                                 temporaryBurnAccountRecord[tx.Account].amount = accountBurnRecord.amount + parseInt(tx.Fee);
-                                temporaryBurnAccountRecord[tx.Account].tx_count = accountBurnRecord.tx_count + 1;
+                                temporaryBurnAccountRecord[tx.Account].tx_count = accountBurnRecord.tx_count + 1;    
                             }
+
+                            //jelli
+                            console.log("TX = " + JSON.stringify(tx,null,2) + "\nTransactions:" + tx_count);
                         }
                     });
                     
@@ -230,6 +241,7 @@ async function main() {
                         
                         dbManager.UpdateMiscRecord("lastSyncedXrplLedgerIndex", ledgerBurn + xrplReqID);
                         xrplReqID++;
+                        
                     } else if (xrplLedger.error === "lgrNotFound" || xrplLedger.ledger.closed === false) {
                         await StartXrplListener();
                         
