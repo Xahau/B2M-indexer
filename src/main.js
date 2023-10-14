@@ -1,9 +1,10 @@
 const dbSetup = require("../db/setup");
+
 const { XrplClient } = require("xrpl-client");
 
-const dbManager = require("../db/manager");
-const record = require("../db/record");
-const { Log } = require("../log/logger");
+const dbManager = require("../db/manager.js");
+const record = require("../db/record.js");
+const { Log } = require("../log/logger.js");
 
 const dotenv = require("dotenv").config({path:"../.env"});
 
@@ -59,7 +60,7 @@ async function StartXrplListener() {
     
     // XRPL
     xrplClient.on("transaction", async (tx) => {
-        if (tx.ledger_index > temporaryLastSyncedXrplLedger && Object.keys(temporaryBurnAccountRecord).length > 0) {
+        if (Object.keys(temporaryBurnAccountRecord).length > 0 && tx.ledger_index > temporaryLastSyncedXrplLedger) {
             dbManager.UpdateMiscRecord("lastSyncedXrplLedgerIndex", temporaryLastSyncedXrplLedger);
             for (const [key, value] of Object.entries(temporaryBurnAccountRecord)) {
                 delete temporaryBurnAccountRecord[key];
@@ -67,19 +68,21 @@ async function StartXrplListener() {
             }
         }
         
-        if (tx.engine_result === "tesSUCCESS" && tx.transaction.hasOwnProperty("OperationLimit") && !tx.transaction.hasOwnProperty("TicketSequence") && tx.transaction.OperationLimit === 21338) {
-            temporaryLastSyncedXrplLedger = tx.ledger_index;
-            
-            var accountBurnRecord = temporaryBurnAccountRecord[tx.transaction.Account];
-            if (accountBurnRecord === undefined) {
-                temporaryBurnAccountRecord[tx.transaction.Account] = {
-                    amount: parseInt(tx.transaction.Fee),
-                    tx_count: 1,
-                    date: tx.transaction.date,
-                };
-            } else {
-                temporaryBurnAccountRecord[tx.transaction.Account].amount = accountBurnRecord.amount + parseInt(tx.transaction.Fee);
-                temporaryBurnAccountRecord[tx.transaction.Account].tx_count = accountBurnRecord.tx_count + 1;
+        if (tx.transaction.hasOwnProperty("OperationLimit") && !tx.transaction.hasOwnProperty("TicketSequence") && tx.transaction.OperationLimit === 21338) {
+            if (tx.engine_result === "tesSUCCESS" || tx.engine_result.substr(0, 3) === "tec") {
+                temporaryLastSyncedXrplLedger = tx.ledger_index;
+                
+                var accountBurnRecord = temporaryBurnAccountRecord[tx.transaction.Account];
+                if (accountBurnRecord === undefined) {
+                    temporaryBurnAccountRecord[tx.transaction.Account] = {
+                        amount: parseInt(tx.transaction.Fee),
+                        tx_count: 1,
+                        date: tx.transaction.date,
+                    };
+                } else {
+                    temporaryBurnAccountRecord[tx.transaction.Account].amount = accountBurnRecord.amount + parseInt(tx.transaction.Fee);
+                    temporaryBurnAccountRecord[tx.transaction.Account].tx_count = accountBurnRecord.tx_count + 1;
+                }
             }
         }
     });
@@ -100,7 +103,7 @@ async function StartXahauListener() {
     
     // XAHAU
     xahauClient.on("transaction", async (tx) => {
-        if (tx.ledger_index > temporaryLastSyncedXahauLedger && Object.keys(temporaryMintAccountRecord).length > 0) {
+        if (Object.keys(temporaryMintAccountRecord).length > 0 && tx.ledger_index > temporaryLastSyncedXahauLedger) {
             dbManager.UpdateMiscRecord("lastSyncedXahauLedgerIndex", temporaryLastSyncedXahauLedger);
             for (const [key, value] of Object.entries(temporaryMintAccountRecord)) {
                 delete temporaryMintAccountRecord[key];
@@ -108,8 +111,8 @@ async function StartXahauListener() {
             }
         }
         
-        if (tx.engine_result === "tesSUCCESS" && tx.transaction.TransactionType === "Import") {
-            var newlyFundedAccount = null; 
+        if (tx.transaction.TransactionType === "Import" && tx.engine_result === "tesSUCCESS") {
+            var newlyFundedAccount = 0; 
             var import_amount = null;
             temporaryLastSyncedXahauLedger = tx.ledger_index;
             
@@ -119,8 +122,7 @@ async function StartXahauListener() {
                     import_amount = parseInt(metadata.CreatedNode.NewFields.Balance);
                 }
                 if (metadata.hasOwnProperty("ModifiedNode") && metadata.ModifiedNode.LedgerEntryType === "AccountRoot") {
-                    newlyFundedAccount = 0;
-                    import_amount = parseInt(metadata.ModifiedNode.FinalFields.Balance) - parseInt(metadata.ModifiedNode.PreviousFields.Balance);    
+                    import_amount = (parseInt(metadata.ModifiedNode.FinalFields.Balance) + parseInt(tx.Fee)) - parseInt(metadata.ModifiedNode.PreviousFields.Balance ?? metadata.ModifiedNode.FinalFields.Balance);
                 }
             })
             
@@ -178,7 +180,7 @@ async function main() {
             Log("INF", `Syncing ${xahauDelta} ledgers on Xahau. This may take some time, DO NOT EXIT.`);
         }
         
-        var burnSyncprogress = 0;
+        var burnSyncProgress = 0;
         var mintSyncProgress = 0;
         
         var xrplReqID = 1;
@@ -189,7 +191,7 @@ async function main() {
             // Sync XRPL (Burn)
             if (!xrplListener) {
                 const progress = parseInt(xrplReqID / xrplDelta * 100);
-                if (progress !== burnSyncprogress && progress <= 100) process.stdout.write(`${progress}% synced with XRPL...\r`); burnSyncprogress = progress;
+                if (progress !== burnSyncProgress && progress <= 100) process.stdout.write(`${progress}% synced with XRPL...\r`); burnSyncProgress = progress;
                 
                 var xrplLedger = await xrplClient.send({
                     "id": xrplReqID,
@@ -199,51 +201,44 @@ async function main() {
                     "expand": true
                 });
                 
-                try {
-                    xrplLedger.ledger.transactions.forEach(async tx => {
-                        if (tx.hasOwnProperty("OperationLimit") && !tx.hasOwnProperty("TicketSequence") && tx.OperationLimit === 21338) {
-                            var accountBurnRecord = temporaryBurnAccountRecord[tx.Account];
-                            if (accountBurnRecord === undefined) {
-                                temporaryBurnAccountRecord[tx.Account] = {
-                                    amount: parseInt(tx.Fee),
-                                    tx_count: 1,
-                                    date: xrplLedger.ledger.close_time,
-                                };
-                            } else {
-                                temporaryBurnAccountRecord[tx.Account].amount = accountBurnRecord.amount + parseInt(tx.Fee);
-                                temporaryBurnAccountRecord[tx.Account].tx_count = accountBurnRecord.tx_count + 1;
+                if (xrplLedger.validated === true) {
+                    try {
+                        xrplLedger.ledger.transactions.forEach(async tx => {
+                            if (tx.hasOwnProperty("OperationLimit") && !tx.hasOwnProperty("TicketSequence") && tx.OperationLimit === 21338) {
+                                if (tx.metaData.TransactionResult === "tesSUCCESS" || tx.metaData.TransactionResult.substr(0, 3) === "tec") {
+                                    var accountBurnRecord = temporaryBurnAccountRecord[tx.Account];
+                                    if (accountBurnRecord === undefined) {
+                                        temporaryBurnAccountRecord[tx.Account] = {
+                                            amount: parseInt(tx.Fee),
+                                            tx_count: 1,
+                                            date: xrplLedger.ledger.close_time,
+                                        };
+                                    } else {
+                                        temporaryBurnAccountRecord[tx.Account].amount = accountBurnRecord.amount + parseInt(tx.Fee);
+                                        temporaryBurnAccountRecord[tx.Account].tx_count = accountBurnRecord.tx_count + 1;
+                                    }
+                                }
                             }
-                        }
-                    });
-                    
-                    if (xrplLedger.validated === true) {
+                        });
+                        
                         for (const [key, value] of Object.entries(temporaryBurnAccountRecord)) {
                             delete temporaryBurnAccountRecord[key];
                             await record.RecordBurnTx(key, value.amount, value.tx_count, value.date);
                         }
                         
                         dbManager.UpdateMiscRecord("lastSyncedXrplLedgerIndex", ledgerBurn + xrplReqID);
-                        xrplReqID++;
-                    } else if (xrplLedger.error === "lgrNotFound" || xrplLedger.ledger.closed === false) {
-                        await StartXrplListener();
-                        
-                        Log("INF", `Re-synced ${xrplReqID-1} ledgers on the XRPL`);
-                        
-                        // junky way to stop syncing w/ the network, but it works.
-                        ledgerBurn = Infinity;
-                    }
-                } catch (err) {
-                    if (xrplLedger.error === "lgrNotFound" || xrplLedger.ledger.closed === false) {
-                        await StartXrplListener();
-                        
-                        Log("INF", `Re-synced ${xrplReqID-1} ledgers on the XRPL`);
-                        
-                        // junky way to stop syncing w/ the network, but it works.
-                        ledgerBurn = Infinity;
-                    } else {
+                        xrplReqID++;               
+                    } catch (err) {
                         Log("ERR", `Re-syncing Error (XRPL): ${err}`);
-                        break;
+                        break;        
                     }
+                } else if (xrplLedger.error === "lgrNotFound" || xrplLedger.validated === false) {
+                    await StartXrplListener();
+                    
+                    Log("INF", `Re-synced ${xrplReqID-1} ledgers on the XRPL`);
+                    
+                    // junky way to stop syncing w/ the network, but it works.
+                    ledgerBurn = Infinity;
                 }
             }
             
@@ -260,39 +255,38 @@ async function main() {
                     "expand": true
                 });
                 
-                try {
-                    xahauLedger.ledger.transactions.forEach(async tx => {
-                        if (tx.TransactionType === "Import") {
-                            var newlyFundedAccount = null; 
-                            var import_amount = null;
-                            
-                            tx.metaData.AffectedNodes.forEach(metadata => {
-                                if (metadata.hasOwnProperty("CreatedNode") && metadata.CreatedNode.LedgerEntryType === "AccountRoot") {
-                                    newlyFundedAccount = 1;
-                                    import_amount = parseInt(metadata.CreatedNode.NewFields.Balance);
+                if(xahauLedger.validated === true) {
+                    try {
+                        xahauLedger.ledger.transactions.forEach(async tx => {
+                            if (tx.TransactionType === "Import" && tx.metaData.TransactionResult === "tesSUCCESS") {
+                                var newlyFundedAccount = 0;
+                                var import_amount = null;
+                                
+                                tx.metaData.AffectedNodes.forEach(metadata => {
+                                    if (metadata.hasOwnProperty("CreatedNode") && metadata.CreatedNode.LedgerEntryType === "AccountRoot") {
+                                        newlyFundedAccount = 1;
+                                        import_amount = parseInt(metadata.CreatedNode.NewFields.Balance);
+                                    }
+                                    if (metadata.hasOwnProperty("ModifiedNode") && metadata.ModifiedNode.LedgerEntryType === "AccountRoot") {
+                                        import_amount = (parseInt(metadata.ModifiedNode.FinalFields.Balance) + parseInt(tx.Fee)) - parseInt(metadata.ModifiedNode.PreviousFields.Balance ?? metadata.ModifiedNode.FinalFields.Balance);
+                                    }
+                                })
+                                
+                                var accountMintRecord = temporaryMintAccountRecord[tx.Account];
+                                if (accountMintRecord === undefined) {
+                                    temporaryMintAccountRecord[tx.Account] = {
+                                        amount: import_amount,
+                                        tx_count: 1,
+                                        date: xahauLedger.ledger.close_time,
+                                        newly_funded_account: newlyFundedAccount
+                                    };
+                                } else {
+                                    temporaryMintAccountRecord[tx.Account].amount = accountMintRecord.amount + import_amount;
+                                    temporaryMintAccountRecord[tx.Account].tx_count = accountMintRecord.tx_count + 1;
                                 }
-                                if (metadata.hasOwnProperty("ModifiedNode") && metadata.ModifiedNode.LedgerEntryType === "AccountRoot") {
-                                    newlyFundedAccount = 0;
-                                    import_amount = parseInt(metadata.ModifiedNode.FinalFields.Balance) - parseInt(metadata.ModifiedNode.PreviousFields.Balance);    
-                                }
-                            })
-                            
-                            var accountMintRecord = temporaryMintAccountRecord[tx.Account];
-                            if (accountMintRecord === undefined) {
-                                temporaryMintAccountRecord[tx.Account] = {
-                                    amount: import_amount,
-                                    tx_count: 1,
-                                    date: xahauLedger.ledger.close_time,
-                                    newly_funded_account: newlyFundedAccount
-                                };
-                            } else {
-                                temporaryMintAccountRecord[tx.Account].amount = accountMintRecord.amount + import_amount;
-                                temporaryMintAccountRecord[tx.Account].tx_count = accountMintRecord.tx_count + 1;
                             }
-                        }
-                    });
-                    
-                    if(xahauLedger.validated === true) {
+                        });
+                        
                         for (const [key, value] of Object.entries(temporaryMintAccountRecord)) {
                             delete temporaryMintAccountRecord[key];
                             await record.RecordMintTx(key, value.amount, value.tx_count, value.date, value.newly_funded_account);
@@ -300,24 +294,16 @@ async function main() {
                         
                         dbManager.UpdateMiscRecord("lastSyncedXahauLedgerIndex", ledgerMint + xahauReqID);
                         xahauReqID++;
-                    } else if (xahauLedger.error === "lgrNotFound" || xahauLedger.ledger.closed === false) {
-                        await StartXahauListener();
-                        
-                        Log("INF", `Re-synced ${xahauReqID-1} ledgers on Xahau`);
-                        
-                        ledgerMint = Infinity;
-                    }
-                } catch (err) {
-                    if (xahauLedger.error === "lgrNotFound" || xahauLedger.ledger.closed === false) {
-                        await StartXahauListener();
-                        
-                        Log("INF", `Re-synced ${xahauReqID-1} ledgers on Xahau`);
-                        
-                        ledgerMint = Infinity;
-                    } else {
+                    } catch (err) {
                         Log("ERR", `Re-syncing Error (Xahau): ${err}`);
                         break;
                     }
+                } else if (xahauLedger.error === "lgrNotFound" || xahauLedger.validated === false) {
+                    await StartXahauListener();
+                    
+                    Log("INF", `Re-synced ${xahauReqID-1} ledgers on Xahau`);
+                    
+                    ledgerMint = Infinity;
                 }
             }
         }

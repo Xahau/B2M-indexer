@@ -1,4 +1,4 @@
-const dbManager = require("../db/manager");
+const dbManager = require("../db/manager.js");
 const prompt = require("prompt-sync")({ sigint: true });
 
 async function main() {
@@ -34,6 +34,7 @@ async function main() {
                 minted_amount += record.minted_amount;
                 total_funded_accounts += record.newly_funded_account;
             });
+            // To get the current B2M rate (XRP-to-XAH): Overall Minted Amount (XAH - including import tx fee) / Burnt Amount (XRP)
             console.log(` -- B2M-Funded Account : ${total_funded_accounts} Xahau Accounts`);
             console.log(` --          Burnt XRP : ${burnt_amount / 1000000} $XRP`);
             console.log(` --         Minted XAH : ${minted_amount / 1000000} $XAH`);
