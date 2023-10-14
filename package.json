@@ -1,32 +1,33 @@
 {
-  "name": "b2m-indexer",
-  "version": "1.2.0",
-  "description": "Store & Index through the XRP Ledger & Xahau for B2M traffic.",
-  "main": "main.js",
-  "scripts": {
-    "start": "cd src; node main.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Xahau/B2M-indexer.git"
-  },
-  "keywords": [
-    "B2M",
-    "XRPL",
-    "Xahau"
-  ],
-  "author": "Wo Jake",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/Xahau/B2M-indexer/issues"
-  },
-  "homepage": "https://github.com/Xahau/B2M-indexer#readme",
-  "dependencies": {
-    "prompt-sync": "^4.2.0",
-    "sqlite3": "^5.1.6",
-    "xrpl-client": "^2.2.0",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2"
+    "name": "b2m-indexer",
+    "version": "1.2.0",
+    "description": "Store & Index through the XRP Ledger & Xahau for B2M traffic.",
+    "main": "main.js",
+    "scripts": {
+      "start": "cd src; node main.js",
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/Xahau/B2M-indexer.git"
+    },
+    "keywords": [
+      "B2M",
+      "XRPL",
+      "Xahau"
+    ],
+    "author": "Wo Jake",
+    "license": "ISC",
+    "bugs": {
+      "url": "https://github.com/Xahau/B2M-indexer/issues"
+    },
+    "homepage": "https://github.com/Xahau/B2M-indexer#readme",
+    "dependencies": {
+      "prompt-sync": "^4.2.0",
+      "sqlite3": "^5.1.6",
+      "xrpl-client": "^2.2.0",
+      "dotenv": "^16.3.1",
+      "express": "^4.18.2"
+    }
   }
-}
+  
