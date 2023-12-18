@@ -1,6 +1,10 @@
 db/:account:
 db/:record:
+db/_account.sqlite3
+db/_record.sqlite3
 log/ERR.txt
 log/INF.txt
-node_modules/ 
+node_modules/
+.vscode
+.npm
 .env
