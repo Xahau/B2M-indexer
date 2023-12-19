@@ -4,6 +4,7 @@ db/_account.sqlite3
 db/_record.sqlite3
 log/ERR.txt
 log/INF.txt
+log/WRN.txt
 node_modules/
 .vscode
 .npm

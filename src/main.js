@@ -57,14 +57,25 @@ var temporaryLastSyncedXahauLedger = 0;
 
 // MAIN proccesing function for Xahau 
 async function processXahauTransactions(xahauLedger, ledger, ledgerID) {
+    //extablish a common transaction location
+    
+    if (xahauLedger.transaction) {
+        xahauLedger.ledger.transactions = xahauLedger.transaction
+        if (xahauLedger.meta) {xahauLedger.ledger.transactions.meta = xahauLedger.meta}
+        if (xahauLedger.metaData) {xahauLedger.ledger.transactions.meta = xahauLedger.metaData}
+        else { Log("WRN",`tx ---> ${JSON.stringify(xahauLedger)}`) }
+        delete xahauLedger.transaction
+    }
     
     try {
         for (const tx of xahauLedger.ledger.transactions) {
-            // establish a common tx.meta location
+
+            // establish a common tx.meta location            
             if(tx.metaData) {
                 tx.meta = tx.metaData;
                 delete tx.metaData;
             }
+            
 
             // Import detection
             if (tx.TransactionType === "Import" && (tx.meta.TransactionResult === "tesSUCCESS" || tx.engine_result === "tesSUCCESS")) {
@@ -306,13 +317,13 @@ async function processXahauTransactions(xahauLedger, ledger, ledgerID) {
                 // Log("INF", `processing temporaryHooksRecord -> temp:${JSON.stringify(temporaryHooksRecord)} hooksrecord:${HooksRecord}`);
                 delete temporaryHooksRecord[key];
                 await dbManager.db.RecordHookSet(key, value.HookNamespace, value.HookSetTxnID, value.HookOn, value.hash, value.date);
-                Log("INF", `processed ${value.hookcount}:hooksets ${value.hookinvokecount}:hookinvoke successfully (HookHash ${value.Hash})`);
+                Log("INF", `processed ${value.hookcount}:hooksets ${value.hookinvokecount}:hookinvoke successfully (HookHash ${value.hash})`);
             }
             
         }
 
         dbManager.db.UpdateMiscRecord("lastSyncedXahauLedgerIndex", ledger + ledgerID);
-        // xahauReqID++;  //to be removed or ledgerID++ ?
+
     } catch (err) {
         Log("ERR", `Re-syncing Error (Xahau): ${err}`);
         throw err;
@@ -335,17 +346,16 @@ async function StartXrplListener() {
     // XRPL
     xrplClient.on("transaction", async (tx) => {
         if (Object.keys(temporaryBurnAccountRecord).length > 0 && tx.ledger_index > temporaryLastSyncedXrplLedger) {
-            dbManager.db.UpdateMiscRecord("lastSyncedXrplLedgerIndex", temporaryLastSyncedXrplLedger);
+            
             for (const [key, value] of Object.entries(temporaryBurnAccountRecord)) {
                 delete temporaryBurnAccountRecord[key];
                 await dbManager.RecordBurnTx(key, value.amount, value.tx_count, value.date);
             }
-        }
-        
-        if (tx.transaction.hasOwnProperty("OperationLimit") && !tx.transaction.hasOwnProperty("TicketSequence") && tx.transaction.OperationLimit === 21337) {
-            if (tx.engine_result === "tesSUCCESS" || tx.engine_result.substr(0, 3) === "tec") {
-                temporaryLastSyncedXrplLedger = tx.ledger_index;
-                
+        };
+        if (tx.engine_result === "tesSUCCESS" || tx.engine_result.substr(0, 3) === "tec") {
+            dbManager.db.UpdateMiscRecord("lastSyncedXrplLedgerIndex", tx.ledger_index);
+
+            if (tx.transaction.hasOwnProperty("OperationLimit") && !tx.transaction.hasOwnProperty("TicketSequence") && tx.transaction.OperationLimit === 21337) {               
                 var accountBurnRecord = temporaryBurnAccountRecord[tx.transaction.Account];
                 if (accountBurnRecord === undefined) {
                     temporaryBurnAccountRecord[tx.transaction.Account] = {
@@ -359,7 +369,7 @@ async function StartXrplListener() {
                 }
             }
         }
-    });
+    })
 }
 
 async function StartXahauListener() {
@@ -374,30 +384,15 @@ async function StartXahauListener() {
     });
     
     Log("INF", "Listening to Xahau for B2M (Mint) traffic");
-    
-    // XAHAU
+
+    // check for all the Transactions types, and then process them (adding any types in processXahauTransactions() needs to be added here too.)
     xahauClient.on("transaction", async (tx) => {
-
-        if (Object.keys(temporaryMintAccountRecord).length > 0 && tx.ledger_index > temporaryLastSyncedXahauLedger) {
-            dbManager.db.UpdateMiscRecord("lastSyncedXahauLedgerIndex", temporaryLastSyncedXahauLedger);
-            for (const [key, value] of Object.entries(temporaryMintAccountRecord)) {
-                delete temporaryMintAccountRecord[key];
-                await dbManager.RecordMintTx(key, value.amount, value.tx_count, value.date, value.newly_funded_account);
-            }
+        if ( tx.engine_result === "tesSUCCESS" ) {
+            if ( tx.transaction.TransactionType === "Import" || tx.transaction.TransactionType === "URITokenMint" || tx.transaction.TransactionType === "URITokenBurn" || tx.transaction.TransactionType === "URITokenBuy" || tx.transaction.TransactionType === "SetHook" || tx.transaction.TransactionType === "Invoke" ) {
+                processXahauTransactions(tx, tx.ledger_index, 0)
+            } else { dbManager.db.UpdateMiscRecord("lastSyncedXahauLedgerIndex", tx.ledger_index) }
         }
-
-        if(tx.transaction) {
-            tx = tx.transaction;
-            delete tx.transaction;
-        }
-        Log("INF",`before listening`)
-        processXahauTransactions(subXahauLedger)
-        Log("INF",`after afterlistening`)
-
-        if (tx.engine_result === "tesSUCCESS" && ( tx.TransactionType === "Import" || tx.TransactionType === "URITokenMint" || tx.TransactionType === "URITokenBurn" || tx.TransactionType === "URITokenBuy" || tx.TransactionType === "SetHook" || tx.TransactionType === "Invoke" )) {
-            temporaryLastSyncedXahauLedger = tx.ledger_index;
-        } 
-    });
+    })
 }
 
 // Main loop function

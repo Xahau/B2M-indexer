@@ -1,6 +1,8 @@
 # Burn2Mint Indexer
 
-Index through the XRPL & Xahau for B2M traffic via rippled & xahaud websocket API. This indexer is serverless and is meant to be hosted 24/7.
+Will Index through the XRPL & Xahau ledgers for B2M traffic, URITokens Hooks via configured websocket API.
+after indexing through ledgers, it will listen for ongoing transactions.
+This indexer is serverless and is meant to be hosted 24/7.
 
 > This indexer supports indexing/logging of XRP burns, XAH Import Mints, URITokens, and basic HookSet/Invoke log.
 > Its mainly been tested with MariaDB due to the speed of that DB, sqlite works ok if theres not much action due to "SQL_BUSY" errors
