@@ -21,7 +21,7 @@ app.get('/', async (req, res) => {
         var uritoken_sell_count = 0;
         var hook_count = 0;
         var hookinvoke_count = 0;
-        const endpoints = ["/all /account/<r-account> /history/daily /history/monthy /uri/<hash> "];
+        const endpoints = ["/all","/account/<r-account>","/history/daily","/history/monthy","/uri/<hash>"];
 
         //console.log(`setting up -> ${uritoken_mint_count} before.  raw data -> ${JSON.stringify(data_MonthlyHistoryRecord)} `);
         data_MonthlyHistoryRecord.forEach(record => {

@@ -6,6 +6,7 @@ log/ERR.txt
 log/INF.txt
 log/WRN.txt
 node_modules/
+tester.js
 .vscode
 .npm
 .env

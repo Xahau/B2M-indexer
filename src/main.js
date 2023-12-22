@@ -56,26 +56,27 @@ var temporaryHooksRecord = {};
 var temporaryLastSyncedXahauLedger = 0;
 
 // MAIN proccesing function for Xahau 
-async function processXahauTransactions(xahauLedger, ledger, ledgerID) {
-    //extablish a common transaction location
+async function processXahauTransactions(incomingTX, ledger, ledgerID) {
     
-    if (xahauLedger.transaction) {
-        xahauLedger.ledger.transactions = xahauLedger.transaction
-        if (xahauLedger.meta) {xahauLedger.ledger.transactions.meta = xahauLedger.meta}
-        if (xahauLedger.metaData) {xahauLedger.ledger.transactions.meta = xahauLedger.metaData}
-        else { Log("WRN",`tx ---> ${JSON.stringify(xahauLedger)}`) }
-        delete xahauLedger.transaction
-    }
-    
+    //prepare the incomingTX (so this processXahauTransactions() function can process "ledgers" and "transaction" types)
+    var xahauLedger = {};
+    if (incomingTX.transaction) {    
+        xahauLedger.ledger = incomingTX;
+        if (xahauLedger.ledger.meta) {xahauLedger.ledger.transaction.meta = xahauLedger.ledger.meta};
+        if (xahauLedger.ledger.metaData) {xahauLedger.ledger.transaction.meta = xahauLedger.ledger.metaData};
+        xahauLedger.ledger.transactions = [ incomingTX.transaction ];
+        xahauLedger.ledger.close_time = incomingTX.transaction.date;
+        delete xahauLedger.ledger.transaction; // not sure i need to do this ?
+    } else xahauLedger = incomingTX;
+
     try {
         for (const tx of xahauLedger.ledger.transactions) {
 
-            // establish a common tx.meta location            
+            // check and establish a common tx.meta location            
             if(tx.metaData) {
                 tx.meta = tx.metaData;
                 delete tx.metaData;
-            }
-            
+            };
 
             // Import detection
             if (tx.TransactionType === "Import" && (tx.meta.TransactionResult === "tesSUCCESS" || tx.engine_result === "tesSUCCESS")) {
@@ -346,7 +347,7 @@ async function StartXrplListener() {
     // XRPL
     xrplClient.on("transaction", async (tx) => {
         if (Object.keys(temporaryBurnAccountRecord).length > 0 && tx.ledger_index > temporaryLastSyncedXrplLedger) {
-            
+
             for (const [key, value] of Object.entries(temporaryBurnAccountRecord)) {
                 delete temporaryBurnAccountRecord[key];
                 await dbManager.RecordBurnTx(key, value.amount, value.tx_count, value.date);
